@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+import torch
 from torch.utils.data import Dataset
 
 
@@ -22,7 +23,7 @@ class ReviewsDataset(Dataset):
         return (text, label)
 
 
-class BowReviewsDataset(Dataset):
+class SequenceReviewsDataset(Dataset):
     def __init__(self, base_dataset, vocabulary):
         self.base_dataset = base_dataset
         self.vocabulary = vocabulary
@@ -32,5 +33,7 @@ class BowReviewsDataset(Dataset):
 
     def __getitem__(self, idx):
         text, label = self.base_dataset[idx]
-        bow = self.vocabulary.text_to_bow(text)
-        return (bow, label)
+        ids = self.vocabulary.text_to_ids(text)
+        if not ids:
+            ids = [0]
+        return torch.tensor(ids, dtype=torch.long), label

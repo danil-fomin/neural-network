@@ -1,27 +1,17 @@
 import torch.nn as nn
 
 
-class BowClassifier(nn.Module):
-    def __init__(self, input_size, output_size, dropout=0.3):
+class RnnClassifier(nn.Module):
+    def __init__(self, vocab_size, embed_dim, hidden_size, output_size):
         super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(input_size, 512),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-            nn.Linear(512, 256),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-            nn.Linear(256, 128),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-            nn.Linear(128, 64),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-            nn.Linear(64, 32),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-            nn.Linear(32, output_size),
-        )
+
+        self.embedding = nn.Embedding(vocab_size + 1, embed_dim, padding_idx=0)
+        self.rnn = nn.RNN(embed_dim, hidden_size, batch_first=True)
+        self.linear = nn.Linear(hidden_size, output_size)
 
     def forward(self, x):
-        return self.net(x)
+        x = self.embedding(x)        
+        _, hidden = self.rnn(x)      
+        hidden = hidden.squeeze(0)
+           
+        return self.linear(hidden)   

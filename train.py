@@ -1,4 +1,4 @@
-"""Train BoW classifier on kinopoisk reviews."""
+"""Train RNN classifier on kinopoisk reviews."""
 
 import pickle
 import time
@@ -7,11 +7,12 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
 
-from dataset import ReviewsDataset, BowReviewsDataset
+from dataset import ReviewsDataset, SequenceReviewsDataset
 from vocabulary import Vocabulary
-from model import BowClassifier
+from model import RnnClassifier
 
 ROOT = Path(__file__).parent
 DATASET_DIR = ROOT / "dataset"
@@ -19,11 +20,20 @@ MODEL_PATH = ROOT / "model.pt"
 VOCAB_PATH = ROOT / "vocab.pkl"
 
 VOCAB_SIZE = 10000
+EMBED_DIM = 64
+HIDDEN_SIZE = 64
 NUM_CLASSES = 3
 BATCH_SIZE = 64
 LR = 1e-3
 EPOCHS = 10
 NUM_WORKERS = 2
+
+
+def collate_pad(batch):
+    sequences, labels = zip(*batch)
+    padded = pad_sequence(sequences, batch_first=True, padding_value=0)
+    labels = torch.tensor(labels, dtype=torch.long)
+    return padded, labels
 
 
 def evaluate(model, loader, loss_fn, device):
@@ -65,19 +75,22 @@ def main():
     print(f"  vocab size: {len(vocab)} in {time.time() - t0:.1f}s")
 
     train_loader = DataLoader(
-        BowReviewsDataset(train_raw, vocab),
+        SequenceReviewsDataset(train_raw, vocab),
         batch_size=BATCH_SIZE, shuffle=True,
         num_workers=NUM_WORKERS, persistent_workers=NUM_WORKERS > 0,
         pin_memory=(device.type == "cuda"),
+        collate_fn=collate_pad,
     )
+
     val_loader = DataLoader(
-        BowReviewsDataset(val_raw, vocab),
+        SequenceReviewsDataset(val_raw, vocab),
         batch_size=BATCH_SIZE, shuffle=False,
         num_workers=NUM_WORKERS, persistent_workers=NUM_WORKERS > 0,
         pin_memory=(device.type == "cuda"),
+        collate_fn=collate_pad,
     )
 
-    model = BowClassifier(VOCAB_SIZE, NUM_CLASSES).to(device)
+    model = RnnClassifier(VOCAB_SIZE, EMBED_DIM, HIDDEN_SIZE, NUM_CLASSES).to(device)
     print(f"Model: {model}")
     print(f"Parameters: {sum(p.numel() for p in model.parameters())}")
 
@@ -89,6 +102,7 @@ def main():
         [total / (NUM_CLASSES * c) for c in label_counts],
         dtype=torch.float32,
     ).to(device)
+    
     print(f"Label counts: {label_counts}")
     print(f"Class weights: {[round(w, 3) for w in class_weights.tolist()]}")
 
