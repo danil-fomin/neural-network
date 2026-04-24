@@ -4,29 +4,37 @@ from pathlib import Path
 
 import torch
 
-from model import BowClassifier
+from model import RnnClassifier
 
 ROOT = Path(__file__).parent
 MODEL_PATH = ROOT / "model.pt"
 VOCAB_PATH = ROOT / "vocab.pkl"
 
+EMBED_DIM = 64
+HIDDEN_SIZE = 64
+MAX_LEN = 300
 NUM_CLASSES = 3
+
 IDX_TO_CLASS = {0: "negative", 1: "neutral", 2: "positive"}
 
 
 def load():
     with open(VOCAB_PATH, "rb") as f:
         vocab = pickle.load(f)
-    model = BowClassifier(len(vocab.token_to_idx), NUM_CLASSES)
-    model.load_state_dict(torch.load(MODEL_PATH, weights_only=True))
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = RnnClassifier(len(vocab), EMBED_DIM, HIDDEN_SIZE, NUM_CLASSES)
+    model.load_state_dict(torch.load(MODEL_PATH, weights_only=True, map_location=device))
     model.eval()
     return vocab, model
 
 
 def predict(text: str, vocab, model) -> tuple[str, list[float]]:
-    bow = vocab.text_to_bow(text).unsqueeze(0)
+    ids = vocab.text_to_ids(text)[:MAX_LEN]
+    if not ids:
+        ids = [vocab.token_to_idx["<UNK>"]]
+    inputs = torch.tensor([ids], dtype=torch.long)
     with torch.no_grad():
-        logits = model(bow)
+        logits = model(inputs)
         probs = torch.softmax(logits, dim=1).squeeze(0).tolist()
     pred_idx = max(range(NUM_CLASSES), key=lambda i: probs[i])
     return IDX_TO_CLASS[pred_idx], probs

@@ -1,5 +1,3 @@
-"""Train RNN classifier on kinopoisk reviews."""
-
 import pickle
 import time
 from pathlib import Path
@@ -7,10 +5,9 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
 
-from dataset import ReviewsDataset, SequenceReviewsDataset
+from dataset import ReviewsDataset, SequenceReviewsDataset, collate_pad
 from vocabulary import Vocabulary
 from model import RnnClassifier
 
@@ -22,18 +19,12 @@ VOCAB_PATH = ROOT / "vocab.pkl"
 VOCAB_SIZE = 10000
 EMBED_DIM = 64
 HIDDEN_SIZE = 64
+MAX_LEN = 300
 NUM_CLASSES = 3
 BATCH_SIZE = 64
 LR = 1e-3
 EPOCHS = 10
 NUM_WORKERS = 2
-
-
-def collate_pad(batch):
-    sequences, labels = zip(*batch)
-    padded = pad_sequence(sequences, batch_first=True, padding_value=0)
-    labels = torch.tensor(labels, dtype=torch.long)
-    return padded, labels
 
 
 def evaluate(model, loader, loss_fn, device):
@@ -75,7 +66,7 @@ def main():
     print(f"  vocab size: {len(vocab)} in {time.time() - t0:.1f}s")
 
     train_loader = DataLoader(
-        SequenceReviewsDataset(train_raw, vocab),
+        SequenceReviewsDataset(train_raw, vocab, MAX_LEN),
         batch_size=BATCH_SIZE, shuffle=True,
         num_workers=NUM_WORKERS, persistent_workers=NUM_WORKERS > 0,
         pin_memory=(device.type == "cuda"),
@@ -83,14 +74,14 @@ def main():
     )
 
     val_loader = DataLoader(
-        SequenceReviewsDataset(val_raw, vocab),
+        SequenceReviewsDataset(val_raw, vocab, MAX_LEN),
         batch_size=BATCH_SIZE, shuffle=False,
         num_workers=NUM_WORKERS, persistent_workers=NUM_WORKERS > 0,
         pin_memory=(device.type == "cuda"),
         collate_fn=collate_pad,
     )
 
-    model = RnnClassifier(VOCAB_SIZE, EMBED_DIM, HIDDEN_SIZE, NUM_CLASSES).to(device)
+    model = RnnClassifier(len(vocab), EMBED_DIM, HIDDEN_SIZE, NUM_CLASSES).to(device)
     print(f"Model: {model}")
     print(f"Parameters: {sum(p.numel() for p in model.parameters())}")
 

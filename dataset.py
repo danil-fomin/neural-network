@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import torch
+from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset
 
 
@@ -24,16 +25,24 @@ class ReviewsDataset(Dataset):
 
 
 class SequenceReviewsDataset(Dataset):
-    def __init__(self, base_dataset, vocabulary):
+    def __init__(self, base_dataset, vocabulary, max_len):
         self.base_dataset = base_dataset
         self.vocabulary = vocabulary
+        self.max_len = max_len
 
     def __len__(self):
         return len(self.base_dataset)
 
     def __getitem__(self, idx):
         text, label = self.base_dataset[idx]
-        ids = self.vocabulary.text_to_ids(text)
+        ids = self.vocabulary.text_to_ids(text)[: self.max_len]
         if not ids:
-            ids = [0]
+            ids = [self.vocabulary.token_to_idx["<UNK>"]]
         return torch.tensor(ids, dtype=torch.long), label
+
+
+def collate_pad(batch):
+    sequences, labels = zip(*batch)
+    padded = pad_sequence(sequences, batch_first=True, padding_value=0)
+    labels = torch.tensor(labels, dtype=torch.long)
+    return padded, labels

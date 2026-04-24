@@ -4,17 +4,21 @@ from pathlib import Path
 import torch
 from torch.utils.data import DataLoader
 
-from dataset import ReviewsDataset, BowReviewsDataset
-from model import BowClassifier
+from dataset import ReviewsDataset, SequenceReviewsDataset, collate_pad
+from model import RnnClassifier
 
 ROOT = Path(__file__).parent
 DATASET_DIR = ROOT / "dataset"
 MODEL_PATH = ROOT / "model.pt"
 VOCAB_PATH = ROOT / "vocab.pkl"
 
+EMBED_DIM = 64
+HIDDEN_SIZE = 64
+MAX_LEN = 300
 NUM_CLASSES = 3
-CLASS_NAMES = ["negative", "neutral", "positive"]
 BATCH_SIZE = 64
+
+CLASS_NAMES = ["negative", "neutral", "positive"]
 
 
 def main():
@@ -26,7 +30,7 @@ def main():
         vocab = pickle.load(f)
 
     print(f"Loading model from {MODEL_PATH}")
-    model = BowClassifier(len(vocab), NUM_CLASSES).to(device)
+    model = RnnClassifier(len(vocab), EMBED_DIM, HIDDEN_SIZE, NUM_CLASSES).to(device)
     model.load_state_dict(
         torch.load(MODEL_PATH, weights_only=True, map_location=device)
     )
@@ -37,9 +41,10 @@ def main():
     print(f"  {len(test_raw)} samples")
 
     test_loader = DataLoader(
-        BowReviewsDataset(test_raw, vocab),
+        SequenceReviewsDataset(test_raw, vocab, MAX_LEN),
         batch_size=BATCH_SIZE,
         shuffle=False,
+        collate_fn=collate_pad,
     )
 
     total = 0

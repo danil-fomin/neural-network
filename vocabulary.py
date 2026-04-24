@@ -1,8 +1,11 @@
 from collections import Counter
-
+import re
 
 def tokenize(text: str):
-    return text.lower().split()
+    lower_text = text.lower()
+    clean_text = re.sub(r'[^\w\s]', '', lower_text)
+    
+    return clean_text.split()
 
 
 class Vocabulary:
@@ -17,8 +20,11 @@ class Vocabulary:
 
         top_tokens = counter.most_common(max_size)
 
-        for index, (token, _) in enumerate(top_tokens):
-            self.token_to_idx[token] = index + 1
+        self.token_to_idx["<PAD>"] = 0
+        self.token_to_idx["<UNK>"] = 1
+
+        for token_id, (token, _) in enumerate(top_tokens, start=2):
+            self.token_to_idx[token] = token_id
 
     def __len__(self):
         return len(self.token_to_idx)
@@ -27,8 +33,8 @@ class Vocabulary:
         ids = []
         tokens = tokenize(text)
 
+        unk_id = self.token_to_idx["<UNK>"]
         for token in tokens:
-            if token in self.token_to_idx:
-                ids.append(self.token_to_idx[token])
+            ids.append(self.token_to_idx.get(token, unk_id))
 
         return ids
